@@ -28,10 +28,13 @@ interface Cache_Item_Interface
      * Returns the key for the current cache item.
      *
      * The key is loaded by the Implementing Library, but should be available to
-     * the higher level callers when needed.
+     * the higher level callers when needed. Keys are unique within a single pool
+     * and are used to address items for get, set, and delete operations.
      *
-     * @return string
-     *   The key string for this cache item.
+     * @return string The unique key string identifying this cache item within
+     *   its pool. The key is set at item creation time and never changes.
+     *
+     * @since 1.0
      */
     public function get_key(): string;
     /**
@@ -43,18 +46,27 @@ interface Cache_Item_Interface
      * is a legitimate cached value, so the isHit() method SHOULD be used to
      * differentiate between "null value was found" and "no value was found."
      *
-     * @return mixed
-     *   The value corresponding to this cache item's key, or null if not found.
+     * @return mixed The deserialized cached value, or null on a cache miss.
+     *   Always call is_hit() before trusting this value; a null return does
+     *   not distinguish a stored null from a missing entry.
+     *
+     * @see self::is_hit() Use this to determine whether null means "miss" or "stored null".
+     * @since 1.0
      */
     public function get(): mixed;
     /**
      * Confirms if the cache item lookup resulted in a cache hit.
      *
      * Note: This method MUST NOT have a race condition between calling isHit()
-     * and calling get().
+     * and calling get(). Because a single item object represents both the key
+     * and the result, the hit/miss state is frozen at item-fetch time and will
+     * not change for the lifetime of the object.
      *
-     * @return bool
-     *   True if the request resulted in a cache hit. False otherwise.
+     * @return bool True if the pool contained a valid, non-expired entry for
+     *   this item's key at the time it was retrieved. False on a cache miss,
+     *   expiry, or any retrieval error.
+     *
+     * @since 1.0
      */
     public function is_hit(): bool;
     /**
@@ -62,40 +74,52 @@ interface Cache_Item_Interface
      *
      * The $value argument may be any item that can be serialized by PHP,
      * although the method of serialization is left up to the Implementing
-     * Library.
+     * Library. The value is not persisted until save() or save_deferred() is
+     * called on the owning pool.
      *
-     * @param mixed $value
-     *   The serializable value to be stored.
+     * @param mixed $value The serializable value to be stored. Resources and
+     *   closures are generally not serializable; the implementing library will
+     *   throw or silently fail for non-serializable types.
      *
-     * @return static
-     *   The invoked object.
+     * @return static The same item instance, allowing method chaining such as
+     *   $item->set($value)->expires_after(3600).
+     *
+     * @since 1.0
      */
     public function set(mixed $value): static;
     /**
      * Sets the absolute expiration time for this cache item.
      *
-     * @param \DateTimeInterface|null $expiration
-     *   The point in time after which the item MUST be considered expired.
-     *   If null is passed explicitly, a default value MAY be used. If none is set,
-     *   the value should be stored permanently or for as long as the
-     *   implementation allows.
+     * Use this when you know the exact moment the item should expire (e.g.,
+     * a session token valid until midnight, or an OAuth token with a known
+     * expiry timestamp). For relative expiry, prefer expires_after().
      *
-     * @return static
-     *   The called object.
+     * @param \DateTimeInterface|null $expiration The point in time after which
+     *   the item MUST be considered expired and removed from the pool. Pass null
+     *   to use the pool's default TTL, or store indefinitely if no default is set.
+     *
+     * @return static The same item instance for method chaining.
+     *
+     * @see self::expires_after() For TTL-based relative expiry.
+     * @since 1.0
      */
     public function expires_at(?\DateTimeInterface $expiration): static;
     /**
      * Sets the relative expiration time for this cache item.
      *
-     * @param int|\DateInterval|null $time
-     *   The period of time from the present after which the item MUST be considered
-     *   expired. An integer parameter is understood to be the time in seconds until
-     *   expiration. If null is passed explicitly, a default value MAY be used.
-     *   If none is set, the value should be stored permanently or for as long as the
-     *   implementation allows.
+     * Use this when you want the item to live for a duration from now rather
+     * than until a specific timestamp. An integer value is treated as seconds;
+     * passing 3600 means the item expires one hour from the time save() is called.
      *
-     * @return static
-     *   The called object.
+     * @param int|\DateInterval|null $time The TTL duration. An integer is
+     *   interpreted as seconds from the present. A DateInterval allows richer
+     *   expressions such as "P1D" for one day. Pass null to use the pool's
+     *   default TTL, or store indefinitely if no default is configured.
+     *
+     * @return static The same item instance for method chaining.
+     *
+     * @see self::expires_at() For absolute-timestamp expiry.
+     * @since 1.0
      */
     public function expires_after(int|\DateInterval|null $time): static;
 }
