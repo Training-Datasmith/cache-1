@@ -6,7 +6,7 @@ namespace Psr\Cache\Tests\Integration;
 
 use DateTimeImmutable;
 
-final class DeferredSaveTest extends ArrayCachePoolTestCase
+final class DeferredSaveTest extends ReferencePoolTestCase
 {
     public function testDeferredItemsAreHitsBeforeAndAfterCommit(): void
     {
@@ -24,7 +24,7 @@ final class DeferredSaveTest extends ArrayCachePoolTestCase
         $this->assertTrue($this->pool()->getItem('key2')->isHit());
         $this->assertSame('4712', $this->pool()->getItem('key2')->get());
 
-        $other = $this->createPool();
+        $other = $this->createCachePool();
         $this->assertFalse($other->hasItem('key'));
         $this->assertFalse($other->hasItem('key2'));
 
@@ -65,7 +65,7 @@ final class DeferredSaveTest extends ArrayCachePoolTestCase
 
         $this->assertTrue($this->pool()->commit());
         $this->assertFalse($this->pool()->hasItem('key'));
-        $this->assertFalse($this->createPool()->hasItem('key'));
+        $this->assertFalse($this->createCachePool()->hasItem('key'));
     }
 
     public function testClearDropsDeferredItems(): void
@@ -93,7 +93,7 @@ final class DeferredSaveTest extends ArrayCachePoolTestCase
         unset($pool);
         gc_collect_cycles();
 
-        $reloaded = $this->createPool();
+        $reloaded = $this->createCachePool();
         $this->pool = $reloaded;
         $loaded = $reloaded->getItem('key');
         $this->assertTrue($loaded->isHit());
@@ -114,7 +114,7 @@ final class DeferredSaveTest extends ArrayCachePoolTestCase
 
         $this->pool()->commit();
         $this->assertSame('value', $this->pool()->getItem('key')->get());
-        $this->assertSame('value', $this->createPool()->getItem('key')->get());
+        $this->assertSame('value', $this->createCachePool()->getItem('key')->get());
     }
 
     public function testLaterDeferredSaveOverwritesAnEarlierOne(): void
@@ -144,7 +144,7 @@ final class DeferredSaveTest extends ArrayCachePoolTestCase
         $this->assertTrue($this->pool()->commit());
 
         $this->assertSame('immediate', $this->pool()->getItem('key')->get());
-        $this->assertSame('immediate', $this->createPool()->getItem('key')->get());
+        $this->assertSame('immediate', $this->createCachePool()->getItem('key')->get());
     }
 
     public function testExpiryChangeAfterQueueingDoesNotAffectTheQueuedRecord(): void

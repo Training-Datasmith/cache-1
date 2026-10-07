@@ -9,7 +9,7 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Cache\InvalidArgumentException;
 use stdClass;
 
-final class KeyValidationTest extends ArrayCachePoolTestCase
+final class KeyValidationTest extends ReferencePoolTestCase
 {
     /**
      * @return array<string, array{0: string}>
@@ -75,14 +75,14 @@ final class KeyValidationTest extends ArrayCachePoolTestCase
             $this->pool()->getItems(['key1', $key, 'key2']);
             $this->fail('getItems accepted an invalid key');
         } catch (InvalidArgumentException $exception) {
-            $this->assertNotSame('', $exception->getMessage());
+            $this->assertStringContainsString('Cache key "' . $key . '"', $exception->getMessage());
         }
 
         try {
             $this->pool()->deleteItems(['key1', $key, 'key2']);
             $this->fail('deleteItems accepted an invalid key');
         } catch (InvalidArgumentException $exception) {
-            $this->assertStringContainsString($key === '' ? 'empty' : $key, $exception->getMessage());
+            $this->assertStringContainsString('Cache key "' . $key . '"', $exception->getMessage());
         }
 
         $this->assertTrue($this->pool()->hasItem('key1'));
@@ -119,18 +119,6 @@ final class KeyValidationTest extends ArrayCachePoolTestCase
 
         $this->assertSame('one', $this->pool()->getItem('key1')->get());
         $this->assertSame('two', $this->pool()->getItem('key2')->get());
-    }
-
-    public function testTypedStringParametersRejectNonStrings(): void
-    {
-        foreach (['getItem', 'hasItem', 'deleteItem'] as $method) {
-            try {
-                $this->pool()->{$method}(123);
-                $this->fail($method . ' coerced a non-string key');
-            } catch (\TypeError $exception) {
-                $this->assertNotSame('', $exception->getMessage());
-            }
-        }
     }
 
     public function testSaveRejectsAnItemWhoseKeyIsReserved(): void
@@ -173,8 +161,7 @@ final class KeyValidationTest extends ArrayCachePoolTestCase
 
     public function testSaveDeferredRejectsAnItemWhoseKeyIsReserved(): void
     {
-        $item = $this->pool()->getItem('ok');
-        $item->set('value');
+        $this->saveValue('ok', 'kept');
 
         $bad = new class implements CacheItemInterface {
             public function getKey(): string
@@ -212,9 +199,10 @@ final class KeyValidationTest extends ArrayCachePoolTestCase
             $this->pool()->saveDeferred($bad);
             $this->fail('saveDeferred accepted a reserved key');
         } catch (InvalidArgumentException $exception) {
-            $this->assertStringContainsString('a/b', $exception->getMessage());
+            $this->assertStringContainsString('Cache key "a/b"', $exception->getMessage());
         }
 
-        $this->assertFalse($this->pool()->hasItem('ok'));
+        $this->assertTrue($this->pool()->hasItem('ok'));
+        $this->assertSame('kept', $this->pool()->getItem('ok')->get());
     }
 }

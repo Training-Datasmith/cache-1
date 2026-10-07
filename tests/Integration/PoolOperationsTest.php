@@ -11,7 +11,7 @@ use Psr\Cache\Tests\Fixture\ArrayCachePool;
 use Psr\Cache\Tests\Fixture\ArrayCacheStorage;
 use stdClass;
 
-final class PoolOperationsTest extends ArrayCachePoolTestCase
+final class PoolOperationsTest extends ReferencePoolTestCase
 {
     public function testBasicReadWriteDeleteAndClear(): void
     {
@@ -211,10 +211,11 @@ final class PoolOperationsTest extends ArrayCachePoolTestCase
     {
         $this->saveValue('key', 'shared');
 
-        $other = $this->createPool();
+        $other = $this->createCachePool();
         $this->assertTrue($other->hasItem('key'));
         $this->assertSame('shared', $other->getItem('key')->get());
 
+        // Separate backend. createCachePool() reuses the shared reference storage.
         $isolated = new ArrayCachePool(new ArrayCacheStorage(), $this->clock);
         $this->assertFalse($isolated->hasItem('key'));
 
@@ -222,15 +223,34 @@ final class PoolOperationsTest extends ArrayCachePoolTestCase
         $this->assertFalse($this->pool()->hasItem('key'));
     }
 
-    public function testPoolUsesTheSystemClockWhenNoneIsInjected(): void
+    public function testHasItemReadsTheStoredRecord(): void
+    {
+        $this->assertFalse($this->pool()->hasItem('missing'));
+
+        $item = $this->pool()->getItem('key');
+        $item->set('value')->expiresAfter(2);
+        $this->assertTrue($this->pool()->save($item));
+        $this->assertTrue($this->pool()->hasItem('key'));
+
+        $this->clock->advance(2);
+        $this->assertFalse($this->pool()->hasItem('key'));
+    }
+
+    /**
+     * Reference-pool check: the default clock is the system clock. A short TTL
+     * must not already be expired at the moment of the write.
+     */
+    public function testDefaultClockHonorsARelativeTtl(): void
     {
         $pool = new ArrayCachePool(new ArrayCacheStorage());
         $item = $pool->getItem('key');
-        $item->set('value');
+        $item->set('value')->expiresAfter(60);
         $this->assertTrue($pool->save($item));
 
         $this->assertTrue($pool->hasItem('key'));
-        $this->assertSame('value', $pool->getItem('key')->get());
+        $loaded = $pool->getItem('key');
+        $this->assertTrue($loaded->isHit());
+        $this->assertSame('value', $loaded->get());
     }
 
     /**
@@ -353,13 +373,14 @@ final class PoolOperationsTest extends ArrayCachePoolTestCase
         $this->assertTrue($this->pool()->hasItem('foreign_key'));
     }
 
-    public function testLongAndMinimumCharacterKeysRoundTrip(): void
+    public function testMinimumLegalKeysRoundTrip(): void
     {
+        $maximum = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.';
+        $this->assertSame(64, strlen($maximum));
+        $this->assertSame(1, preg_match('/^[A-Za-z0-9_.]+$/', $maximum));
+
         $keys = [
-            'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.',
-            str_repeat('a', 300),
-            'with space',
-            'clé',
+            $maximum,
             '.',
             '_',
         ];

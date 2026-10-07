@@ -8,15 +8,20 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
 
 /**
- * In-memory PSR-6 pool used to exercise the cache interfaces.
+ * In-memory reference PSR-6 pool.
+ *
+ * This fixture is test code, not coverage of src/. The integration tests that
+ * drive it can be pointed at another pool by implementing
+ * CachePoolIntegrationTestCase::createCachePool().
  *
  * Deferred items are visible on this instance before commit(), and they are
  * written to the shared storage on commit() or destruction. A second pool
  * wrapping the same storage does not see deferred items until then.
  *
- * Keys must be non-empty strings and must not contain the reserved characters
- * {}()/\@:. Any other character, including characters outside the minimum
- * A-Z a-z 0-9 _ . set, is accepted, as are keys longer than 64 characters.
+ * Empty keys and the reserved characters {}()/\@: are rejected. The tests
+ * require only the PSR-6 minimum key set: A-Z, a-z, 0-9, underscore, and
+ * period, up to 64 characters. This pool also accepts other non-reserved
+ * characters and longer keys; that extra acceptance is optional.
  */
 final class ArrayCachePool implements CacheItemPoolInterface
 {
@@ -55,8 +60,11 @@ final class ArrayCachePool implements CacheItemPoolInterface
     public function hasItem(string $key): bool
     {
         $this->validateKey($key);
+        $record = $this->findRecord($key);
 
-        return $this->getItem($key)->isHit();
+        // Read the stored record. Delegating to getItem()->isHit() would make
+        // this path the same code as an item lookup.
+        return $record !== null && !$this->isExpired($record['expiry']);
     }
 
     public function clear(): bool
@@ -96,7 +104,8 @@ final class ArrayCachePool implements CacheItemPoolInterface
         unset($this->deferred[$key]);
 
         // An untouched miss has no value. Persisting it would invent a cached null.
-        if (!$item->isHit()) {
+        // A value that has since expired still counts as assigned and is removed below.
+        if (!$this->hasAssignedValue($item)) {
             return true;
         }
 
@@ -117,7 +126,7 @@ final class ArrayCachePool implements CacheItemPoolInterface
         $key = $item->getKey();
         $this->validateKey($key);
 
-        if (!$item->isHit()) {
+        if (!$this->hasAssignedValue($item)) {
             unset($this->deferred[$key]);
 
             return true;
@@ -186,6 +195,15 @@ final class ArrayCachePool implements CacheItemPoolInterface
         return $this->storage->get($key);
     }
 
+    private function hasAssignedValue(CacheItemInterface $item): bool
+    {
+        if ($item instanceof ArrayCacheItem) {
+            return $item->hasValue();
+        }
+
+        return $item->isHit();
+    }
+
     private function valueOf(CacheItemInterface $item): mixed
     {
         if ($item instanceof ArrayCacheItem) {
@@ -223,7 +241,7 @@ final class ArrayCachePool implements CacheItemPoolInterface
         }
 
         if ($key === '') {
-            return 'Cache key must not be empty.';
+            return 'Cache key "" must not be empty.';
         }
 
         return 'Cache key "' . $key . '" contains reserved characters {}()/\@:.';

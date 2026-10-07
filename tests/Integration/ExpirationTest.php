@@ -8,7 +8,7 @@ use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 
-final class ExpirationTest extends ArrayCachePoolTestCase
+final class ExpirationTest extends ReferencePoolTestCase
 {
     public function testItemRemainsUntilTheTtlElapses(): void
     {
@@ -30,18 +30,28 @@ final class ExpirationTest extends ArrayCachePoolTestCase
         $this->assertFalse($this->pool()->hasItem('key'));
     }
 
-    public function testAlreadyLoadedItemKeepsItsHitAfterTheClockMoves(): void
+    public function testLoadedItemBecomesAMissWhenItsTtlElapses(): void
     {
         $item = $this->pool()->getItem('key');
         $item->set('value')->expiresAfter(2);
         $this->pool()->save($item);
 
         $loaded = $this->pool()->getItem('key');
-        $this->clock->advance(5);
-
         $this->assertTrue($loaded->isHit());
         $this->assertSame('value', $loaded->get());
-        $this->assertFalse($this->pool()->getItem('key')->isHit());
+
+        $this->clock->advance(5);
+
+        $this->assertFalse($loaded->isHit());
+        $this->assertNull($loaded->get());
+        $this->assertNull($loaded->get());
+        $this->assertFalse($loaded->isHit());
+
+        $refetched = $this->pool()->getItem('key');
+        $this->assertFalse($refetched->isHit());
+        $this->assertNull($refetched->get());
+        $this->assertNull($refetched->get());
+        $this->assertFalse($refetched->isHit());
     }
 
     public function testExpiresAtInTheFutureAndThePast(): void
@@ -99,7 +109,7 @@ final class ExpirationTest extends ArrayCachePoolTestCase
         $item->set('data');
         $this->pool()->save($item);
 
-        $pool = $this->createPool();
+        $pool = $this->createCachePool();
         $loaded = $pool->getItem('test_ttl_null');
         $this->assertTrue($loaded->isHit());
         $this->assertSame('data', $loaded->get());
@@ -178,6 +188,6 @@ final class ExpirationTest extends ArrayCachePoolTestCase
         $this->assertFalse($this->pool()->hasItem('key'));
         $this->assertTrue($this->pool()->commit());
         $this->assertFalse($this->pool()->getItem('key')->isHit());
-        $this->assertFalse($this->createPool()->hasItem('key'));
+        $this->assertFalse($this->createCachePool()->hasItem('key'));
     }
 }
