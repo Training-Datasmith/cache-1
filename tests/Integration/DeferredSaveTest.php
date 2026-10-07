@@ -9,6 +9,29 @@ namespace Psr\Cache\Tests\Integration;
  */
 final class DeferredSaveTest extends ReferencePoolTestCase
 {
+    /**
+     * Reference-pool behavior; PSR-6 does not require immediate visibility after
+     * destruction, only eventual persistence of deferred items.
+     */
+    public function testDeferredItemsAreCommittedWhenThePoolIsDestroyed(): void
+    {
+        $item = $this->pool()->getItem('key');
+        $item->set('4711');
+        $this->assertTrue($this->pool()->saveDeferred($item));
+        unset($item);
+
+        $pool = $this->pool;
+        $this->pool = null;
+        unset($pool);
+        gc_collect_cycles();
+
+        $reloaded = $this->createCachePool();
+        $this->pool = $reloaded;
+        $loaded = $reloaded->getItem('key');
+        $this->assertTrue($loaded->isHit());
+        $this->assertSame('4711', $loaded->get());
+    }
+
     /** Reference-pool behavior; PSR-6 does not require this. */
     public function testImmediateSaveWinsOverADeferredValue(): void
     {

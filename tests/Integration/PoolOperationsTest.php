@@ -26,21 +26,21 @@ final class PoolOperationsTest extends ReferencePoolTestCase
     }
 
     /** Reference-pool behavior; PSR-6 does not require this. */
-    public function testGetItemsRepeatsDuplicateKeysAndKeepsNumericStrings(): void
+    public function testGetItemsRepeatsDuplicateKeys(): void
     {
-        $this->saveValue('123', 'numeric');
-        $this->saveValue('0123', 'padded');
+        $this->saveValue('alpha', 'first');
+        $this->saveValue('beta', 'second');
 
         $seen = [];
-        foreach ($this->pool()->getItems(['123', '123', '0123']) as $key => $item) {
+        foreach ($this->pool()->getItems(['alpha', 'alpha', 'beta']) as $key => $item) {
             $this->assertIsString($key);
             $seen[] = [$key, $item->get()];
         }
 
         $this->assertSame([
-            ['123', 'numeric'],
-            ['123', 'numeric'],
-            ['0123', 'padded'],
+            ['alpha', 'first'],
+            ['alpha', 'first'],
+            ['beta', 'second'],
         ], $seen);
     }
 

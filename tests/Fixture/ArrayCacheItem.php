@@ -16,11 +16,12 @@ use Psr\Cache\CacheItemInterface;
  * does not cover src/. The reflection tests under tests/Contract lock the
  * published interfaces.
  *
- * isHit() and get() describe the result of the lookup that produced this
- * object. They do not change while the item is held; expiry is applied on
- * the next pool lookup or save. set() marks the item as carrying a value for
- * a subsequent save. A miss has isHit() false and get() null. A stored null
- * is a hit with get() null until the pool reports it expired on a later lookup.
+ * isHit() and get() describe the lookup snapshot that produced this object.
+ * Time passing does not change that snapshot; expiry is enforced on the next
+ * pool lookup or save. Calling set() on this reference item marks it as
+ * carrying a hit value for a subsequent save (isHit() becomes true). A miss
+ * has isHit() false and get() null. A stored null is a hit with get() null
+ * until the pool reports it expired on a later lookup.
  */
 final class ArrayCacheItem implements CacheItemInterface
 {

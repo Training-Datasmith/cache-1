@@ -35,8 +35,9 @@ abstract class CachePoolIntegrationTestCase extends TestCase
     }
 
     /**
-     * Return a pool for one test. A second call may share the same backend
-     * so committed writes are visible across instances.
+     * Return a new pool instance for each call, all connected to the same
+     * logical repository. Committed writes from one instance must be visible
+     * to any other instance returned for the same test.
      */
     abstract protected function createCachePool(): CacheItemPoolInterface;
 

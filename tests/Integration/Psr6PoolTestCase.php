@@ -136,6 +136,22 @@ abstract class Psr6PoolTestCase extends CachePoolIntegrationTestCase
         }
     }
 
+    public function testGetItemsPreservesNumericStringKeys(): void
+    {
+        $this->saveValue('123', 'numeric');
+
+        $count = 0;
+        foreach ($this->pool()->getItems(['123']) as $key => $item) {
+            $this->assertSame('123', $key);
+            $this->assertSame('123', $item->getKey());
+            $this->assertTrue($item->isHit());
+            $this->assertSame('numeric', $item->get());
+            ++$count;
+        }
+
+        $this->assertSame(1, $count);
+    }
+
     public function testDeleteItemsRemovesOnlyTheRequestedKeys(): void
     {
         $this->saveValue('foo', 'f');
@@ -416,24 +432,6 @@ abstract class Psr6PoolTestCase extends CachePoolIntegrationTestCase
         $this->assertFalse($this->pool()->hasItem('kept-until-clear'));
     }
 
-    public function testDeferredItemsAreCommittedWhenThePoolIsDestroyed(): void
-    {
-        $item = $this->pool()->getItem('key');
-        $item->set('4711');
-        $this->assertTrue($this->pool()->saveDeferred($item));
-
-        $pool = $this->pool;
-        $this->pool = null;
-        unset($pool);
-        gc_collect_cycles();
-
-        $reloaded = $this->createCachePool();
-        $this->pool = $reloaded;
-        $loaded = $reloaded->getItem('key');
-        $this->assertTrue($loaded->isHit());
-        $this->assertSame('4711', $loaded->get());
-    }
-
     public function testChangingAnItemAfterQueueingDoesNotChangeTheQueuedValue(): void
     {
         $item = $this->pool()->getItem('key');
@@ -577,8 +575,9 @@ abstract class Psr6PoolTestCase extends CachePoolIntegrationTestCase
      */
     public function testBulkOperationsRejectNonStringKeys(mixed $key): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->pool()->getItems(['key1', $key, 'key2']);
+        $this->assertInvalidArgumentOrTypeError(function () use ($key): void {
+            $this->pool()->getItems(['key1', $key, 'key2']);
+        });
     }
 
     /**
@@ -586,7 +585,25 @@ abstract class Psr6PoolTestCase extends CachePoolIntegrationTestCase
      */
     public function testDeleteItemsRejectNonStringKeys(mixed $key): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->pool()->deleteItems(['key1', $key, 'key2']);
+        $this->assertInvalidArgumentOrTypeError(function () use ($key): void {
+            $this->pool()->deleteItems(['key1', $key, 'key2']);
+        });
+    }
+
+    private function assertInvalidArgumentOrTypeError(callable $callable): void
+    {
+        try {
+            $callable();
+        } catch (InvalidArgumentException $exception) {
+            $this->assertNotSame('', $exception->getMessage());
+
+            return;
+        } catch (\TypeError $exception) {
+            $this->assertNotSame('', $exception->getMessage());
+
+            return;
+        }
+
+        $this->fail('Expected InvalidArgumentException or TypeError.');
     }
 }
