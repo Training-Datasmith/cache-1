@@ -7,8 +7,10 @@ namespace Psr\Cache\Tests\Integration;
 use DateTimeInterface;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\InvalidArgumentException;
-use stdClass;
 
+/**
+ * Reference-pool key validation; PSR-6 does not require everything asserted here.
+ */
 final class KeyValidationTest extends ReferencePoolTestCase
 {
     /**
@@ -16,20 +18,7 @@ final class KeyValidationTest extends ReferencePoolTestCase
      */
     public static function reservedKeys(): array
     {
-        return [
-            'empty' => [''],
-            'open brace' => ['{'],
-            'close brace' => ['}'],
-            'open paren' => ['('],
-            'close paren' => [')'],
-            'slash' => ['a/b'],
-            'backslash' => ["a\\b"],
-            'at' => ['user@host'],
-            'colon' => ['namespace:key'],
-            'embedded brace' => ['rand{str'],
-            'embedded close brace' => ['rand}str'],
-            'only backslash' => ['\\'],
-        ];
+        return Psr6PoolTestCase::reservedKeys();
     }
 
     /**
@@ -37,33 +26,12 @@ final class KeyValidationTest extends ReferencePoolTestCase
      */
     public static function nonStringKeys(): array
     {
-        return [
-            'integer' => [2],
-            'float' => [2.5],
-            'true' => [true],
-            'false' => [false],
-            'null' => [null],
-            'array' => [['array']],
-            'object' => [new stdClass()],
-        ];
+        return Psr6PoolTestCase::nonStringKeys();
     }
 
     /**
-     * @dataProvider reservedKeys
-     */
-    public function testSingleKeyOperationsRejectReservedKeys(string $key): void
-    {
-        foreach (['getItem', 'hasItem', 'deleteItem'] as $method) {
-            try {
-                $this->pool()->{$method}($key);
-                $this->fail($method . ' accepted ' . var_export($key, true));
-            } catch (InvalidArgumentException $exception) {
-                $this->assertNotSame('', $exception->getMessage());
-            }
-        }
-    }
-
-    /**
+     * Reference-pool behavior; PSR-6 does not require this.
+     *
      * @dataProvider reservedKeys
      */
     public function testBulkOperationsRejectReservedKeysWithoutPartialDeletes(string $key): void
@@ -92,17 +60,8 @@ final class KeyValidationTest extends ReferencePoolTestCase
     }
 
     /**
-     * @dataProvider nonStringKeys
-     */
-    public function testBulkOperationsRejectNonStringKeys(mixed $key): void
-    {
-        $this->saveValue('key1', 'one');
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->pool()->getItems(['key1', $key, 'key2']);
-    }
-
-    /**
+     * Reference-pool behavior; PSR-6 does not require this.
+     *
      * @dataProvider nonStringKeys
      */
     public function testDeleteItemsRejectsNonStringKeysWithoutPartialDeletes(mixed $key): void
@@ -121,6 +80,7 @@ final class KeyValidationTest extends ReferencePoolTestCase
         $this->assertSame('two', $this->pool()->getItem('key2')->get());
     }
 
+    /** Reference-pool behavior; PSR-6 does not require this. */
     public function testSaveRejectsAnItemWhoseKeyIsReserved(): void
     {
         $item = new class implements CacheItemInterface {
@@ -159,6 +119,7 @@ final class KeyValidationTest extends ReferencePoolTestCase
         $this->pool()->save($item);
     }
 
+    /** Reference-pool behavior; PSR-6 does not require this. */
     public function testSaveDeferredRejectsAnItemWhoseKeyIsReserved(): void
     {
         $this->saveValue('ok', 'kept');

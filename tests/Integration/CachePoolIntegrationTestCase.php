@@ -12,10 +12,10 @@ use Psr\Cache\CacheItemPoolInterface;
  * Behavioral checks for a PSR-6 cache pool.
  *
  * This case does not cover src/. The package only publishes interfaces, and
- * the reflection tests in tests/Contract lock that API. Subclasses supply a
- * pool through createCachePool(), so the same checks can target a real
- * implementation. ReferencePoolTestCase wires the in-memory reference pool
- * under tests/Fixture, which is test code rather than package code.
+ * the reflection tests in tests/Contract lock that API. Portable pool checks
+ * live in Psr6PoolTestCase; subclasses supply createCachePool() so those checks
+ * can target a real implementation. Reference-only behavior stays in the
+ * Reference* test classes under this directory.
  */
 abstract class CachePoolIntegrationTestCase extends TestCase
 {

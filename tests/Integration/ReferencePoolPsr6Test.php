@@ -10,18 +10,13 @@ use Psr\Cache\Tests\Fixture\ArrayCacheStorage;
 use Psr\Cache\Tests\Fixture\FrozenClock;
 
 /**
- * Harness for the in-memory reference pool in tests/Fixture.
- *
- * The fixture is a reference implementation used to exercise PSR-6 behavior.
- * It is not production code and these tests are not coverage of src/.
- * A real pool should extend Psr6PoolTestCase and implement createCachePool().
- * This harness is only for reference-pool-specific tests that need a clock.
+ * Runs {@see Psr6PoolTestCase} against the in-memory reference pool in tests/Fixture.
  */
-abstract class ReferencePoolTestCase extends CachePoolIntegrationTestCase
+final class ReferencePoolPsr6Test extends Psr6PoolTestCase
 {
-    protected ArrayCacheStorage $storage;
+    private ArrayCacheStorage $storage;
 
-    protected FrozenClock $clock;
+    private FrozenClock $clock;
 
     protected function setUp(): void
     {

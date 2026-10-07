@@ -12,7 +12,7 @@ use Psr\Cache\CacheItemPoolInterface;
  *
  * This fixture is test code, not coverage of src/. The integration tests that
  * drive it can be pointed at another pool by implementing
- * CachePoolIntegrationTestCase::createCachePool().
+ * Psr6PoolTestCase::createCachePool() or extending that case for a real pool.
  *
  * Deferred items are visible on this instance before commit(), and they are
  * written to the shared storage on commit() or destruction. A second pool
@@ -32,9 +32,9 @@ final class ArrayCachePool implements CacheItemPoolInterface
      */
     private array $deferred = [];
 
-    public function __construct(private ArrayCacheStorage $storage, ?Clock $clock = null)
+    public function __construct(private ArrayCacheStorage $storage, Clock $clock)
     {
-        $this->clock = $clock ?? new SystemClock();
+        $this->clock = $clock;
     }
 
     public function getItem(string $key): CacheItemInterface
@@ -62,8 +62,6 @@ final class ArrayCachePool implements CacheItemPoolInterface
         $this->validateKey($key);
         $record = $this->findRecord($key);
 
-        // Read the stored record. Delegating to getItem()->isHit() would make
-        // this path the same code as an item lookup.
         return $record !== null && !$this->isExpired($record['expiry']);
     }
 
@@ -103,9 +101,7 @@ final class ArrayCachePool implements CacheItemPoolInterface
         $this->validateKey($key);
         unset($this->deferred[$key]);
 
-        // An untouched miss has no value. Persisting it would invent a cached null.
-        // A value that has since expired still counts as assigned and is removed below.
-        if (!$this->hasAssignedValue($item)) {
+        if (!$item->isHit()) {
             return true;
         }
 
@@ -126,7 +122,7 @@ final class ArrayCachePool implements CacheItemPoolInterface
         $key = $item->getKey();
         $this->validateKey($key);
 
-        if (!$this->hasAssignedValue($item)) {
+        if (!$item->isHit()) {
             unset($this->deferred[$key]);
 
             return true;
@@ -193,15 +189,6 @@ final class ArrayCachePool implements CacheItemPoolInterface
         }
 
         return $this->storage->get($key);
-    }
-
-    private function hasAssignedValue(CacheItemInterface $item): bool
-    {
-        if ($item instanceof ArrayCacheItem) {
-            return $item->hasValue();
-        }
-
-        return $item->isHit();
     }
 
     private function valueOf(CacheItemInterface $item): mixed

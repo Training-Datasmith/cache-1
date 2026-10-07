@@ -16,11 +16,11 @@ use Psr\Cache\CacheItemInterface;
  * does not cover src/. The reflection tests under tests/Contract lock the
  * published interfaces.
  *
- * isHit() and get() share one decision: a value was assigned by set() or by
- * a cache hit, and its expiry is still in the future. After that instant both
- * report a miss. An untouched miss has no assigned value, so isHit() is false
- * and get() returns null. A stored null is an assigned value and stays a hit
- * until it expires.
+ * isHit() and get() describe the result of the lookup that produced this
+ * object. They do not change while the item is held; expiry is applied on
+ * the next pool lookup or save. set() marks the item as carrying a value for
+ * a subsequent save. A miss has isHit() false and get() null. A stored null
+ * is a hit with get() null until the pool reports it expired on a later lookup.
  */
 final class ArrayCacheItem implements CacheItemInterface
 {
@@ -40,7 +40,7 @@ final class ArrayCacheItem implements CacheItemInterface
 
     public function get(): mixed
     {
-        if (!$this->isHit()) {
+        if (!$this->hit) {
             return null;
         }
 
@@ -48,18 +48,6 @@ final class ArrayCacheItem implements CacheItemInterface
     }
 
     public function isHit(): bool
-    {
-        return $this->hit && !$this->isExpired();
-    }
-
-    /**
-     * True when set() or a cache hit assigned a value, including after expiry.
-     *
-     * The reference pool uses this to tell an untouched miss from a value that
-     * has since expired. The expired value is deleted on save; the miss is not
-     * turned into a stored null.
-     */
-    public function hasValue(): bool
     {
         return $this->hit;
     }
@@ -115,11 +103,6 @@ final class ArrayCacheItem implements CacheItemInterface
     public function rawValue(): mixed
     {
         return $this->value;
-    }
-
-    private function isExpired(): bool
-    {
-        return $this->expiry !== null && $this->clock->now() >= $this->expiry;
     }
 
     private static function fromClock(Clock $clock): DateTimeImmutable

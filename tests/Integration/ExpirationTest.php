@@ -8,6 +8,9 @@ use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 
+/**
+ * Reference-pool expiration behavior; PSR-6 does not require everything here.
+ */
 final class ExpirationTest extends ReferencePoolTestCase
 {
     public function testItemRemainsUntilTheTtlElapses(): void
@@ -30,50 +33,29 @@ final class ExpirationTest extends ReferencePoolTestCase
         $this->assertFalse($this->pool()->hasItem('key'));
     }
 
-    public function testLoadedItemBecomesAMissWhenItsTtlElapses(): void
+    public function testHeldItemKeepsLookupResultAfterExpiry(): void
     {
         $item = $this->pool()->getItem('key');
         $item->set('value')->expiresAfter(2);
         $this->pool()->save($item);
 
-        $loaded = $this->pool()->getItem('key');
-        $this->assertTrue($loaded->isHit());
-        $this->assertSame('value', $loaded->get());
+        $held = $this->pool()->getItem('key');
+        $this->assertTrue($held->isHit());
+        $this->assertSame('value', $held->get());
 
         $this->clock->advance(5);
 
-        $this->assertFalse($loaded->isHit());
-        $this->assertNull($loaded->get());
-        $this->assertNull($loaded->get());
-        $this->assertFalse($loaded->isHit());
+        $this->assertTrue($held->isHit());
+        $this->assertSame('value', $held->get());
+        $this->assertFalse($this->pool()->getItem('key')->isHit());
+        $this->assertNull($this->pool()->getItem('key')->get());
+        $this->assertFalse($this->pool()->hasItem('key'));
 
-        $refetched = $this->pool()->getItem('key');
-        $this->assertFalse($refetched->isHit());
-        $this->assertNull($refetched->get());
-        $this->assertNull($refetched->get());
-        $this->assertFalse($refetched->isHit());
-    }
-
-    public function testExpiresAtInTheFutureAndThePast(): void
-    {
-        $item = $this->pool()->getItem('key');
-        $item->set('value');
-        $item->expiresAt(new DateTimeImmutable('@1700000100'));
-        $this->pool()->save($item);
-
-        $this->assertTrue($this->pool()->getItem('key')->isHit());
-
-        $item = $this->pool()->getItem('key');
-        $item->set('value');
-        $item->expiresAt(DateTime::createFromFormat('U', '1699999999'));
-        $this->assertTrue($this->pool()->save($item));
-
-        $loaded = $this->pool()->getItem('key');
-        $this->assertFalse($loaded->isHit());
-        $this->assertNull($loaded->get());
+        $this->pool()->save($held);
         $this->assertFalse($this->pool()->hasItem('key'));
     }
 
+    /** Reference-pool behavior; PSR-6 does not require this. */
     public function testExpiresAtSnapshotsAMutableDateTime(): void
     {
         $when = new DateTime('@1700000010');
@@ -87,6 +69,7 @@ final class ExpirationTest extends ReferencePoolTestCase
         $this->assertFalse($this->pool()->hasItem('key'));
     }
 
+    /** Reference-pool behavior; PSR-6 does not require this. */
     public function testNullExpirationStoresTheItemPermanently(): void
     {
         $item = $this->pool()->getItem('key');
@@ -101,30 +84,6 @@ final class ExpirationTest extends ReferencePoolTestCase
         $this->pool()->save($replaced);
         $this->clock->advance(100);
         $this->assertSame('later', $this->pool()->getItem('key')->get());
-    }
-
-    public function testSavingWithoutAnExpiryIsVisibleFromAFreshPool(): void
-    {
-        $item = $this->pool()->getItem('test_ttl_null');
-        $item->set('data');
-        $this->pool()->save($item);
-
-        $pool = $this->createCachePool();
-        $loaded = $pool->getItem('test_ttl_null');
-        $this->assertTrue($loaded->isHit());
-        $this->assertSame('data', $loaded->get());
-    }
-
-    public function testZeroAndNegativeTtlsAreAlreadyExpired(): void
-    {
-        foreach ([0, -1, -30] as $ttl) {
-            $item = $this->pool()->getItem('key');
-            $item->set('value');
-            $item->expiresAfter($ttl);
-            $this->assertTrue($this->pool()->save($item));
-            $this->assertFalse($this->pool()->hasItem('key'), 'TTL ' . $ttl);
-            $this->assertNull($this->pool()->getItem('key')->get());
-        }
     }
 
     public function testDateIntervalExpiration(): void
@@ -142,23 +101,7 @@ final class ExpirationTest extends ReferencePoolTestCase
         $this->assertNull($this->pool()->getItem('key')->get());
     }
 
-    public function testZeroAndInvertedDateIntervalsAreExpired(): void
-    {
-        $item = $this->pool()->getItem('zero');
-        $item->set('value');
-        $item->expiresAfter(new DateInterval('PT0S'));
-        $this->pool()->save($item);
-        $this->assertFalse($this->pool()->hasItem('zero'));
-
-        $inverted = new DateInterval('PT30S');
-        $inverted->invert = 1;
-        $item = $this->pool()->getItem('past');
-        $item->set('value');
-        $item->expiresAfter($inverted);
-        $this->pool()->save($item);
-        $this->assertFalse($this->pool()->hasItem('past'));
-    }
-
+    /** Reference-pool behavior; PSR-6 does not require this. */
     public function testResavingPreservesTheOriginalExpiry(): void
     {
         $item = $this->pool()->getItem('key');

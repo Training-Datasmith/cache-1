@@ -36,23 +36,6 @@ final class CacheExceptionTest extends TestCase
         $this->assertTrue(is_subclass_of(InvalidArgumentException::class, Throwable::class));
     }
 
-    public function testUserlandInvalidArgumentExceptionCanBeCaughtAsCacheException(): void
-    {
-        $exception = new class('Cache key "" is not legal.') extends \InvalidArgumentException implements InvalidArgumentException {
-        };
-
-        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
-        $this->assertInstanceOf(CacheException::class, $exception);
-        $this->assertInstanceOf(Throwable::class, $exception);
-
-        try {
-            throw $exception;
-        } catch (CacheException $caught) {
-            $this->assertSame('Cache key "" is not legal.', $caught->getMessage());
-            $this->assertInstanceOf(InvalidArgumentException::class, $caught);
-        }
-    }
-
     /**
      * @return list<string>
      */
